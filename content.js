@@ -5,6 +5,8 @@ if (typeof window.whatsappScannerInjected === "undefined") {
   let scanInterval;
   let isScanning = false;
   let lastOpenedChat = null;
+  let resultText = null; // Store the result text from the API
+  let checkedConversations = new Set(); // Store already checked conversations
 
   function getUnreadCustomerMessages() {
     try {
@@ -107,35 +109,57 @@ if (typeof window.whatsappScannerInjected === "undefined") {
         console.log("No unread messages to respond to.");
         return false;
       }
-      for (const message of unreadMessages) {
-        const response = await fetch("http://localhost:3000/api/hjf4568uklof/webhook/whatsapp-extension", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ message: message }),
-        });
+      if (unreadMessages?.length > 1) {
+        for (const message of unreadMessages) {
+          const response = await fetch("http://localhost:3000/api/hjf4568uklof/webhook/whatsapp-extension", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ message: message }),
+          });
 
-        if (!response.ok) {
-          console.error("Failed to get message from API");
-          continue;
-          // return false;
+          if (!response.ok) {
+            console.error("Failed to get message from API");
+            continue;
+            // return false;
+          }
+
+          const result = await response.json();
+          const replyText = result?.response;
+
+          if (!replyText) {
+            console.warn("No message returned from API");
+            continue;
+          }
+
+          // Find the input box with exact classes
+          const inputBox = document.querySelector('div.x1hx0egp.x6ikm8r.x1odjw0f.x1k6rcq7.x6prxxf[role="textbox"][aria-label="Type a message"]');
+          // div[role="textbox"][aria-label="Type a message"]
+          if (inputBox) {
+            // Set draft message
+            if (await setDraftMessage(inputBox, replyText)) {
+              // Wait for draft to be set
+              await new Promise((resolve) => setTimeout(resolve, 500));
+
+              // Find and click send button
+              const sendButton = document.querySelector('button[aria-label="Send"]');
+              if (sendButton) {
+                console.log("Clicking send button");
+                sendButton.click();
+              }
+            }
+          }
         }
-
-        const result = await response.json();
-        const replyText = result?.response;
-
-        if (!replyText) {
-          console.warn("No message returned from API");
-          continue;
-        }
-
+      } else {
+        console.log("Only one unread message found, sending response directly");
+        //
         // Find the input box with exact classes
         const inputBox = document.querySelector('div.x1hx0egp.x6ikm8r.x1odjw0f.x1k6rcq7.x6prxxf[role="textbox"][aria-label="Type a message"]');
         // div[role="textbox"][aria-label="Type a message"]
         if (inputBox) {
           // Set draft message
-          if (await setDraftMessage(inputBox, replyText)) {
+          if (await setDraftMessage(inputBox, resultText)) {
             // Wait for draft to be set
             await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -186,6 +210,13 @@ if (typeof window.whatsappScannerInjected === "undefined") {
       const unreadChats = document.querySelectorAll('div[role="listitem"] ._ahlk');
       console.log("Found unread chats:", unreadChats.length);
 
+      // Clear checked conversations if no unread messages
+      if (unreadChats.length === 0) {
+        console.log("No unread messages, clearing checked conversations");
+        checkedConversations.clear();
+        return;
+      }
+
       if (unreadChats.length > 0) {
         for (const unreadBadge of unreadChats) {
           try {
@@ -197,13 +228,38 @@ if (typeof window.whatsappScannerInjected === "undefined") {
             const chatDiv = listItem.querySelector("div._ak72");
             if (!chatDiv) continue;
 
-            // Get chat name for logging
-            const chatName = chatDiv.textContent.trim();
+            // Get chat name and preview message
+            const customerName = chatDiv.querySelector("div.x78zum5 span.x1iyjqo2").textContent.trim();
+            const previewMessage = chatDiv.querySelector("div._ak8k span.x1iyjqo2").textContent.trim();
+            const conversationKey = `${customerName}:${previewMessage}`; // Create unique key
 
-            // Skip if this was the last chat we opened
-            if (chatName === lastOpenedChat) continue;
+            // Skip if already checked and no response existed
+            if (checkedConversations.has(conversationKey)) {
+              console.log("Already checked this conversation, skipping");
+              continue;
+            }
 
-            console.log("Attempting to open chat2:", chatName);
+            // Check if response exists in DB via API
+            try {
+              const checkResponse = await fetch("http://localhost:3000/api/hjf4568uklof/webhook/whatsapp-extension", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ message: previewMessage }),
+              });
+
+              const result = await checkResponse.json();
+              resultText = result?.response;
+              if (!resultText) {
+                console.log("No response exists for this message, marking as checked");
+                checkedConversations.add(conversationKey);
+                continue; // Skip this conversation if no response exists
+              }
+            } catch (error) {
+              console.error("Error checking response existence:", error);
+              continue;
+            }
 
             // Try clicking various elements in order
             const possibleClickTargets = [
@@ -223,7 +279,7 @@ if (typeof window.whatsappScannerInjected === "undefined") {
             // After opening chat, try to send message
             await sendDummyMessage();
 
-            lastOpenedChat = chatName;
+            lastOpenedChat = customerName;
             // Only try one chat at a time
             break;
           } catch (error) {
@@ -262,6 +318,7 @@ if (typeof window.whatsappScannerInjected === "undefined") {
       clearInterval(scanInterval);
       isScanning = false;
       lastOpenedChat = null;
+      checkedConversations.clear(); // Clear checked conversations when stopping
       console.log("Stopped scanning");
 
       // Update badge
