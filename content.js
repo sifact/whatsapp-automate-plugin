@@ -111,7 +111,7 @@ if (typeof window.whatsappScannerInjected === "undefined") {
       }
       if (unreadMessages?.length > 1) {
         for (const message of unreadMessages) {
-          const response = await fetch("http://localhost:3000/api/hjf4568uklof/webhook/whatsapp-extension", {
+          const response = await fetch("https://roboidy.com/api/hjf4568uklof/webhook/whatsapp-extension", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -241,7 +241,7 @@ if (typeof window.whatsappScannerInjected === "undefined") {
 
             // Check if response exists in DB via API
             try {
-              const checkResponse = await fetch("http://localhost:3000/api/hjf4568uklof/webhook/whatsapp-extension", {
+              const checkResponse = await fetch("https://roboidy.com/api/hjf4568uklof/webhook/whatsapp-extension", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
