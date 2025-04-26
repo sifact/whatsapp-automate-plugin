@@ -7,6 +7,7 @@ if (typeof window.whatsappScannerInjected === "undefined") {
   let lastOpenedChat = null;
   let resultText = null; // Store the result text from the API
   let checkedConversations = new Set(); // Store already checked conversations
+  let baseUrl = `https://roboidy.com`;
 
   function getUnreadCustomerMessages() {
     try {
@@ -111,7 +112,7 @@ if (typeof window.whatsappScannerInjected === "undefined") {
       }
       if (unreadMessages?.length > 1) {
         for (const message of unreadMessages) {
-          const response = await fetch("https://roboidy.com/api/hjf4568uklof/webhook/whatsapp-extension", {
+          const response = await fetch(`${baseUrl}/api/hjf4568uklof/webhook/whatsapp-extension`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -119,11 +120,11 @@ if (typeof window.whatsappScannerInjected === "undefined") {
             body: JSON.stringify({ message: message }),
           });
 
-          if (!response.ok) {
-            console.error("Failed to get message from API");
-            continue;
-            // return false;
-          }
+          // if (!response.ok) {
+          //   console.error("Failed to get message from API");
+          //   continue;
+          //   // return false;
+          // }
 
           const result = await response.json();
           const replyText = result?.response;
@@ -241,7 +242,7 @@ if (typeof window.whatsappScannerInjected === "undefined") {
 
             // Check if response exists in DB via API
             try {
-              const checkResponse = await fetch("https://roboidy.com/api/hjf4568uklof/webhook/whatsapp-extension", {
+              const checkResponse = await fetch(`${baseUrl}/api/hjf4568uklof/webhook/whatsapp-extension`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
